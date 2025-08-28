@@ -1,20 +1,21 @@
 import { getAuth } from "@clerk/react-router/ssr.server";
 import { fetchAction, fetchQuery } from "convex/nextjs";
 import ContentSection from "~/components/homepage/content";
+import TechStackSection from "~/components/homepage/featured-documents";
 import Footer from "~/components/homepage/footer";
 import Integrations from "~/components/homepage/integrations";
 import Pricing from "~/components/homepage/pricing";
-import Team from "~/components/homepage/team";
+import TrustIndicators from "~/components/homepage/trust-indicators";
 import { api } from "../../convex/_generated/api";
 import type { Route } from "./+types/home";
 
 export function meta({}: Route.MetaArgs) {
-  const title = "React Starter Kit - Launch Your SAAS Quickly";
-  const description =
-    "This powerful starter kit is designed to help you launch your SAAS application quickly and efficiently.";
-  const keywords = "React, Starter Kit, SAAS, Launch, Quickly, Efficiently";
-  const siteUrl = "https://www.reactstarter.xyz/";
-  const imageUrl =
+  const title = import.meta.env.VITE_SITE_TITLE || "React Starter Kit - Launch Your SaaS in Weeks, Not Months";
+  const description = import.meta.env.VITE_SITE_DESCRIPTION ||
+    "Stop rebuilding the same foundation. Get a complete, production-ready SaaS template with authentication, payments, AI chat, and real-time data working seamlessly out of the box.";
+  const keywords = import.meta.env.VITE_SITE_KEYWORDS || "React Starter Kit, SaaS Template, React Router v7, Convex, Clerk, Polar.sh, TypeScript, TailwindCSS";
+  const siteUrl = import.meta.env.VITE_SITE_URL || "https://www.reactstarter.xyz/";
+  const imageUrl = import.meta.env.VITE_SITE_IMAGE ||
     "https://jdj14ctwppwprnqu.public.blob.vercel-storage.com/rsk-image-FcUcfBMBgsjNLo99j3NhKV64GT2bQl.png";
 
   return [
@@ -33,7 +34,6 @@ export function meta({}: Route.MetaArgs) {
     { property: "og:image:height", content: "630" },
     { property: "og:url", content: siteUrl },
     { property: "og:site_name", content: "React Starter Kit" },
-    { property: "og:image", content: imageUrl },
 
     // Twitter Card
     { name: "twitter:card", content: "summary_large_image" },
@@ -53,26 +53,39 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export async function loader(args: Route.LoaderArgs) {
-  const { userId } = await getAuth(args);
+  try {
+    const { userId } = await getAuth(args);
 
-  // Parallel data fetching to reduce waterfall
-  const [subscriptionData, plans] = await Promise.all([
-    userId
-      ? fetchQuery(api.subscriptions.checkUserSubscriptionStatus, {
-          userId,
-        }).catch((error) => {
-          console.error("Failed to fetch subscription data:", error);
-          return null;
-        })
-      : Promise.resolve(null),
-    fetchAction(api.subscriptions.getAvailablePlans),
-  ]);
+    // Parallel data fetching to reduce waterfall
+    const [subscriptionData, plans] = await Promise.all([
+      userId
+        ? fetchQuery(api.subscriptions.checkUserSubscriptionStatus, {
+            userId,
+          }).catch((error) => {
+            console.error("Failed to fetch subscription data:", error);
+            return null;
+          })
+        : Promise.resolve(null),
+      fetchAction(api.subscriptions.getAvailablePlans).catch((error) => {
+        console.error("Failed to fetch plans:", error);
+        return { items: [], pagination: { totalCount: 0, maxPage: 1 } };
+      }),
+    ]);
 
-  return {
-    isSignedIn: !!userId,
-    hasActiveSubscription: subscriptionData?.hasActiveSubscription || false,
-    plans,
-  };
+    return {
+      isSignedIn: !!userId,
+      hasActiveSubscription: subscriptionData?.hasActiveSubscription || false,
+      plans,
+    };
+  } catch (error) {
+    console.error("Loader error:", error);
+    // Return safe defaults if auth fails
+    return {
+      isSignedIn: false,
+      hasActiveSubscription: false,
+      plans: { items: [], pagination: { totalCount: 0, maxPage: 1 } },
+    };
+  }
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
@@ -80,7 +93,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     <>
       <Integrations loaderData={loaderData} />
       <ContentSection />
-      <Team />
+      <TechStackSection />
+      <TrustIndicators />
       <Pricing loaderData={loaderData} />
       <Footer />
     </>

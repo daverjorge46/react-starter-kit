@@ -19,7 +19,7 @@ export async function loader(args: Route.LoaderArgs) {
 
   // Parallel data fetching to reduce waterfall
   const [subscriptionStatus, user] = await Promise.all([
-    fetchQuery(api.subscriptions.checkUserSubscriptionStatus, { userId }),
+    fetchQuery(api.subscriptions.checkUserSubscriptionStatusByClerkId, { clerkUserId: userId }),
     createClerkClient({
       secretKey: process.env.CLERK_SECRET_KEY,
     }).users.getUser(userId)

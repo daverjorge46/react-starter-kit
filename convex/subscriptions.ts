@@ -67,7 +67,7 @@ const createCheckout = async ({
 export const getAvailablePlansQuery = query({
   handler: async (ctx) => {
     const polar = new Polar({
-      server: "sandbox",
+      server: "production",
       accessToken: process.env.POLAR_ACCESS_TOKEN,
     });
 
@@ -99,34 +99,59 @@ export const getAvailablePlansQuery = query({
 
 export const getAvailablePlans = action({
   handler: async (ctx) => {
-    const polar = new Polar({
-      server: "sandbox",
-      accessToken: process.env.POLAR_ACCESS_TOKEN,
-    });
+    // Check if Polar credentials are properly configured
+    if (!process.env.POLAR_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN === 'your_polar_access_token_here') {
+      console.log("Polar access token not configured, returning empty plans");
+      return {
+        items: [],
+        pagination: { totalCount: 0, maxPage: 1 },
+      };
+    }
 
-    const { result } = await polar.products.list({
-      organizationId: process.env.POLAR_ORGANIZATION_ID,
-      isArchived: false,
-    });
+    if (!process.env.POLAR_ORGANIZATION_ID || process.env.POLAR_ORGANIZATION_ID === 'your_polar_organization_id_here') {
+      console.log("Polar organization ID not configured, returning empty plans");
+      return {
+        items: [],
+        pagination: { totalCount: 0, maxPage: 1 },
+      };
+    }
 
-    // Transform the data to remove Date objects and keep only needed fields
-    const cleanedItems = result.items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      isRecurring: item.isRecurring,
-      prices: item.prices.map((price: any) => ({
-        id: price.id,
-        amount: price.priceAmount,
-        currency: price.priceCurrency,
-        interval: price.recurringInterval,
-      })),
-    }));
+    try {
+      const polar = new Polar({
+        server: "production",
+        accessToken: process.env.POLAR_ACCESS_TOKEN,
+      });
 
-    return {
-      items: cleanedItems,
-      pagination: result.pagination,
-    };
+      const { result } = await polar.products.list({
+        organizationId: process.env.POLAR_ORGANIZATION_ID,
+        isArchived: false,
+      });
+
+      // Transform the data to remove Date objects and keep only needed fields
+      const cleanedItems = result.items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        isRecurring: item.isRecurring,
+        prices: item.prices.map((price: any) => ({
+          id: price.id,
+          amount: price.priceAmount,
+          currency: price.priceCurrency,
+          interval: price.recurringInterval,
+        })),
+      }));
+
+      return {
+        items: cleanedItems,
+        pagination: result.pagination,
+      };
+    } catch (error) {
+      console.error("Failed to fetch Polar plans:", error);
+      return {
+        items: [],
+        pagination: { totalCount: 0, maxPage: 1 },
+      };
+    }
   },
 });
 
@@ -495,7 +520,7 @@ export const paymentWebhook = httpAction(async (ctx, request) => {
 export const createCustomerPortalUrl = action({
   handler: async (ctx, args: { customerId: string }) => {
     const polar = new Polar({
-      server: "sandbox",
+      server: "production",
       accessToken: process.env.POLAR_ACCESS_TOKEN,
     });
 
