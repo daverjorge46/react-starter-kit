@@ -67,7 +67,7 @@ const createCheckout = async ({
 export const getAvailablePlansQuery = query({
   handler: async (ctx) => {
     const polar = new Polar({
-      server: "production",
+      server: (process.env.POLAR_SERVER as "sandbox" | "production") || "sandbox",
       accessToken: process.env.POLAR_ACCESS_TOKEN,
     });
 
@@ -118,7 +118,7 @@ export const getAvailablePlans = action({
 
     try {
       const polar = new Polar({
-        server: "production",
+        server: (process.env.POLAR_SERVER as "sandbox" | "production") || "sandbox",
         accessToken: process.env.POLAR_ACCESS_TOKEN,
       });
 
@@ -162,7 +162,7 @@ export const createCheckoutSession = action({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated");
+      throw new Error("Not authenticated - please sign in again");
     }
 
     // First check if user exists
@@ -520,7 +520,7 @@ export const paymentWebhook = httpAction(async (ctx, request) => {
 export const createCustomerPortalUrl = action({
   handler: async (ctx, args: { customerId: string }) => {
     const polar = new Polar({
-      server: "production",
+      server: (process.env.POLAR_SERVER as "sandbox" | "production") || "sandbox",
       accessToken: process.env.POLAR_ACCESS_TOKEN,
     });
 

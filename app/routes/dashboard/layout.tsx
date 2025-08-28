@@ -1,40 +1,66 @@
 import { getAuth } from "@clerk/react-router/ssr.server";
-import { fetchQuery } from "convex/nextjs";
+import { ConvexHttpClient } from "convex/browser";
 import { redirect, useLoaderData } from "react-router";
 import { AppSidebar } from "~/components/dashboard/app-sidebar";
 import { SiteHeader } from "~/components/dashboard/site-header";
 import { SidebarInset, SidebarProvider } from "~/components/ui/sidebar";
-import { api } from "../../../convex/_generated/api";
+import { api } from "convex/_generated/api";
 import type { Route } from "./+types/layout";
 import { createClerkClient } from "@clerk/react-router/api.server";
 import { Outlet } from "react-router";
 
 export async function loader(args: Route.LoaderArgs) {
-  const { userId } = await getAuth(args);
+  const { userId, getToken } = await getAuth(args);
 
   // Redirect to sign-in if not authenticated
   if (!userId) {
     throw redirect("/sign-in");
   }
 
-  // Parallel data fetching to reduce waterfall
-  const [subscriptionStatus, user] = await Promise.all([
-    fetchQuery(api.subscriptions.checkUserSubscriptionStatusByClerkId, { clerkUserId: userId }),
-    createClerkClient({
-      secretKey: process.env.CLERK_SECRET_KEY,
-    }).users.getUser(userId)
-  ]);
+  try {
+    // Debug logging as suggested by coach
+    console.log("🔍 Auth Debug:", {
+      userId: userId?.substring(0, 8) + "...",
+      convexUrl: process.env.VITE_CONVEX_URL?.substring(0, 30) + "..."
+    });
 
-  // Redirect to subscription-required if no active subscription
-  if (!subscriptionStatus?.hasActiveSubscription) {
-    throw redirect("/subscription-required");
+    // Create Convex client for server-side data fetching
+    const convexClient = new ConvexHttpClient(process.env.VITE_CONVEX_URL!);
+    
+    // Get the JWT token for Convex authentication (template name should match Clerk dashboard)
+    const token = await getToken({ template: "convex" });
+    console.log("🔍 Token Debug:", {
+      hasToken: !!token,
+      tokenPreview: token?.substring(0, 20) + "..."
+    });
+    
+    if (token) {
+      convexClient.setAuth(token);
+    }
+
+    // Parallel data fetching to reduce waterfall
+    const [subscriptionStatus, user] = await Promise.all([
+      convexClient.query(api.subscriptions.checkUserSubscriptionStatusByClerkId, { clerkUserId: userId }),
+      createClerkClient({
+        secretKey: process.env.CLERK_SECRET_KEY,
+      }).users.getUser(userId)
+    ]);
+
+    // Redirect to subscription-required if no active subscription
+    if (!subscriptionStatus?.hasActiveSubscription) {
+      throw redirect("/subscription-required");
+    }
+
+    return { user };
+  } catch (error) {
+    console.error("Dashboard loader error:", error);
+    // If there's an auth error, redirect to sign-in
+    throw redirect("/sign-in");
   }
-
-  return { user };
 }
 
 export default function DashboardLayout() {
-  const { user } = useLoaderData();
+  const { user } = useLoaderData<typeof loader>();
 
   return (
     <SidebarProvider

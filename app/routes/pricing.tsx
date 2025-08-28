@@ -1,6 +1,6 @@
 "use client";
 import { useAuth } from "@clerk/react-router";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery, useConvexAuth } from "convex/react";
 import { Check, Loader2 } from "lucide-react";
 import * as React from "react";
 import { useState } from "react";
@@ -16,7 +16,8 @@ import {
 import { api } from "../../convex/_generated/api";
 
 export default function IntegratedPricing() {
-  const { isSignedIn, userId } = useAuth();
+  const { userId } = useAuth();
+  const { isAuthenticated } = useConvexAuth();
   const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null);
   const [plans, setPlans] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +26,7 @@ export default function IntegratedPricing() {
   const subscriptionStatus = useQuery(
     api.subscriptions.checkUserSubscriptionStatus,
     {
-      userId: isSignedIn ? userId : undefined,
+      userId: isAuthenticated ? userId : undefined,
     }
   );
   const userSubscription = useQuery(api.subscriptions.fetchUserSubscription);
@@ -33,12 +34,12 @@ export default function IntegratedPricing() {
   const createPortalUrl = useAction(api.subscriptions.createCustomerPortalUrl);
   const upsertUser = useMutation(api.users.upsertUser);
 
-  // Sync user when signed in
+  // Sync user when authenticated
   React.useEffect(() => {
-    if (isSignedIn) {
+    if (isAuthenticated) {
       upsertUser().catch(console.error);
     }
-  }, [isSignedIn, upsertUser]);
+  }, [isAuthenticated, upsertUser]);
 
   // Load plans on component mount
   React.useEffect(() => {
@@ -55,7 +56,7 @@ export default function IntegratedPricing() {
   }, [getPlans]);
 
   const handleSubscribe = async (priceId: string) => {
-    if (!isSignedIn) {
+    if (!isAuthenticated) {
       // Redirect to sign in
       window.location.href = "/sign-in";
       return;
@@ -117,7 +118,7 @@ export default function IntegratedPricing() {
         <p className="text-xl text-muted-foreground">
           Choose the plan that fits your needs
         </p>
-        {isSignedIn && !subscriptionStatus?.hasActiveSubscription && (
+        {isAuthenticated && !subscriptionStatus?.hasActiveSubscription && (
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg max-w-md mx-auto">
             <p className="text-blue-800 font-medium">📋 Complete your setup</p>
             <p className="text-blue-700 text-sm mt-1">

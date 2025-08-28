@@ -1,6 +1,6 @@
 "use client";
 import { useAuth } from "@clerk/react-router";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery, useConvexAuth } from "convex/react";
 import { Check, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -14,7 +14,7 @@ import {
 import { api } from "../../../convex/_generated/api";
 
 export default function Pricing({ loaderData }: { loaderData: any }) {
-  const { isSignedIn } = useAuth();
+  const { isAuthenticated } = useConvexAuth();
   const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +24,7 @@ export default function Pricing({ loaderData }: { loaderData: any }) {
   const upsertUser = useMutation(api.users.upsertUser);
 
   const handleSubscribe = async (priceId: string) => {
-    if (!isSignedIn) {
+    if (!isAuthenticated) {
       window.location.href = "/sign-in";
       return;
     }

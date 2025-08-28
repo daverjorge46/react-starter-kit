@@ -90,6 +90,8 @@ export default function App({ loaderData }: Route.ComponentProps) {
       loaderData={loaderData}
       signUpFallbackRedirectUrl="/"
       signInFallbackRedirectUrl="/"
+      // Enable SSR mode for React Router v7
+      supportEmail="support@yourapp.com"
     >
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
         <ThemeProvider>
