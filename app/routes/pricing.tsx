@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
+import { Navbar } from "~/components/homepage/navbar";
 import { api } from "../../convex/_generated/api";
 import type { Route } from "./+types/pricing";
 
@@ -178,14 +179,58 @@ export default function PricingPage({ loaderData }: Route.ComponentProps) {
       setError("Taking you to your account where you can complete your subscription...");
       
       setTimeout(() => {
-        // Create a Clerk account modal or redirect to account management
-        // This will open Clerk's user account interface where billing works
+        // Open Clerk's user account modal first
         if (window.Clerk && window.Clerk.openUserProfile) {
-          window.Clerk.openUserProfile({ 
-            initialPage: "billing" 
+          window.Clerk.openUserProfile({
+            routing: "modal",
+            appearance: {
+              elements: {
+                rootBox: "flex justify-center items-center min-h-screen",
+                card: "shadow-2xl"
+              }
+            }
           });
+          
+          // Wait for modal to fully render, then click the Billing tab
+          const clickBillingTab = () => {
+            // Try multiple selectors to find the Billing tab
+            const selectors = [
+              '[data-localization-key="userProfile.navbar.billing"]',
+              'button:contains("Billing")',
+              '[role="tab"]:contains("Billing")',
+              '.cl-navbarButton:nth-child(3)', // Third tab (Profile, Security, Billing)
+              'button[data-testid="billing-tab"]'
+            ];
+            
+            for (const selector of selectors) {
+              const billingTab = document.querySelector(selector);
+              if (billingTab && billingTab instanceof HTMLElement) {
+                console.log('Clicking billing tab with selector:', selector);
+                billingTab.click();
+                return true;
+              }
+            }
+            
+            // Alternative: try finding by text content
+            const allButtons = document.querySelectorAll('button');
+            for (const button of allButtons) {
+              if (button.textContent?.toLowerCase().includes('billing')) {
+                console.log('Clicking billing tab by text content');
+                button.click();
+                return true;
+              }
+            }
+            
+            return false;
+          };
+          
+          // Try clicking after various delays to account for modal rendering
+          setTimeout(() => clickBillingTab(), 500);
+          setTimeout(() => clickBillingTab(), 1000);
+          setTimeout(() => clickBillingTab(), 1500);
+          
         } else {
-          // Fallback: redirect to a page that will show account interface
+          // Fallback: redirect to dashboard settings where billing interface is accessible
           window.location.href = "/dashboard/settings";
         }
         setLoadingPriceId(null);
@@ -208,22 +253,27 @@ export default function PricingPage({ loaderData }: Route.ComponentProps) {
 
   if (!loaderData.plans || loaderData.plans.items.length === 0) {
     return (
-      <section className="flex flex-col items-center justify-center min-h-screen px-4">
-        <div className="flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Loading plans...</span>
-        </div>
-        {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
-      </section>
+      <>
+        <Navbar loaderData={loaderData} />
+        <section className="flex flex-col items-center justify-center min-h-screen px-4">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Loading plans...</span>
+          </div>
+          {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
+        </section>
+      </>
     );
   }
 
   return (
-    <section className="flex flex-col items-center justify-center min-h-screen px-4">
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold tracking-tight mb-4">
-          Simple, transparent pricing
-        </h1>
+    <>
+      <Navbar loaderData={loaderData} />
+      <section className="flex flex-col items-center justify-center min-h-screen px-4">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold tracking-tight mb-4">
+            Simple, transparent pricing
+          </h1>
         <p className="text-xl text-muted-foreground">
           Choose the plan that fits your needs
         </p>
@@ -382,5 +432,6 @@ export default function PricingPage({ loaderData }: Route.ComponentProps) {
           )}
       </div>
     </section>
+    </>
   );
 }

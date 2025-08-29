@@ -88,8 +88,8 @@ export default function App({ loaderData }: Route.ComponentProps) {
     <ClerkProvider
       publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string}
       loaderData={loaderData}
-      signUpFallbackRedirectUrl="/"
-      signInFallbackRedirectUrl="/"
+      signUpFallbackRedirectUrl="/redirect-after-auth"
+      signInFallbackRedirectUrl="/redirect-after-auth"
       // Enable SSR mode for React Router v7
       supportEmail="support@yourapp.com"
       // Improve development mode handling

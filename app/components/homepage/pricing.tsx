@@ -55,14 +55,58 @@ export default function Pricing({ loaderData }: { loaderData: any }) {
       setError("Taking you to your account where you can complete your subscription...");
       
       setTimeout(() => {
-        // Create a Clerk account modal or redirect to account management
-        // This will open Clerk's user account interface where billing works
+        // Open Clerk's user account modal first
         if (window.Clerk && window.Clerk.openUserProfile) {
-          window.Clerk.openUserProfile({ 
-            initialPage: "billing" 
+          window.Clerk.openUserProfile({
+            routing: "modal",
+            appearance: {
+              elements: {
+                rootBox: "flex justify-center items-center min-h-screen",
+                card: "shadow-2xl"
+              }
+            }
           });
+          
+          // Wait for modal to fully render, then click the Billing tab
+          const clickBillingTab = () => {
+            // Try multiple selectors to find the Billing tab
+            const selectors = [
+              '[data-localization-key="userProfile.navbar.billing"]',
+              'button:contains("Billing")',
+              '[role="tab"]:contains("Billing")',
+              '.cl-navbarButton:nth-child(3)', // Third tab (Profile, Security, Billing)
+              'button[data-testid="billing-tab"]'
+            ];
+            
+            for (const selector of selectors) {
+              const billingTab = document.querySelector(selector);
+              if (billingTab && billingTab instanceof HTMLElement) {
+                console.log('Clicking billing tab with selector:', selector);
+                billingTab.click();
+                return true;
+              }
+            }
+            
+            // Alternative: try finding by text content
+            const allButtons = document.querySelectorAll('button');
+            for (const button of allButtons) {
+              if (button.textContent?.toLowerCase().includes('billing')) {
+                console.log('Clicking billing tab by text content');
+                button.click();
+                return true;
+              }
+            }
+            
+            return false;
+          };
+          
+          // Try clicking after various delays to account for modal rendering
+          setTimeout(() => clickBillingTab(), 500);
+          setTimeout(() => clickBillingTab(), 1000);
+          setTimeout(() => clickBillingTab(), 1500);
+          
         } else {
-          // Fallback: redirect to a page that will show account interface
+          // Fallback: redirect to dashboard settings where billing interface is accessible
           window.location.href = "/dashboard/settings";
         }
         setLoadingPriceId(null);

@@ -26,6 +26,16 @@ export default function Success() {
     }
   }, [isSignedIn, upsertUser]);
 
+  // Auto-redirect to dashboard if subscription is active
+  useEffect(() => {
+    if (subscription?.status === 'active') {
+      const timer = setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 3000); // 3 second delay to show success message
+      return () => clearTimeout(timer);
+    }
+  }, [subscription?.status]);
+
   if (!isSignedIn) {
     return (
       <section className="flex flex-col items-center justify-center min-h-screen px-4">
@@ -101,6 +111,13 @@ export default function Success() {
 
           <div className="space-y-4">
             <h3 className="font-semibold text-lg">What's Next?</h3>
+            {subscription?.status === 'active' && (
+              <div className="bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg p-4 text-center">
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  🎉 Redirecting to your dashboard in 3 seconds...
+                </p>
+              </div>
+            )}
             <div className="grid gap-4 md:grid-cols-2">
               <Button asChild className="w-full">
                 <Link to={subscription?.status === 'active' ? "/dashboard" : "/pricing"}>
