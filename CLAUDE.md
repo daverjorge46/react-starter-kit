@@ -57,7 +57,7 @@ This is a **React Starter Kit (RSK)** - a production-ready SaaS template built w
 - `/dashboard/chat` - AI-powered chat interface
 - `/dashboard/settings` - User settings
 - `/success` - Subscription success page
-- `/webhook/polar` - Polar.sh webhook handler
+- `/webhook/clerk` - Clerk Billing webhook handler
 
 ### Authentication Flow
 - Uses Clerk for authentication with SSR support
@@ -66,14 +66,14 @@ This is a **React Starter Kit (RSK)** - a production-ready SaaS template built w
 - User data is synchronized between Clerk and Convex
 
 ### Subscription Management
-- Polar.sh integration for billing and payments
+- Clerk Billing integration for billing and payments
 - Real-time subscription status updates via webhooks
 - Subscription status stored in Convex database
-- Dynamic pricing fetched from Polar.sh API
+- Dynamic pricing fetched from Clerk Billing API
 
 ### Database Schema (Convex)
 - `users` - User profiles synced from Clerk
-- `subscriptions` - Subscription data from Polar.sh
+- `subscriptions` - Subscription data from Clerk Billing
 - `webhookEvents` - Webhook event logs
 
 ## Development Patterns
@@ -110,10 +110,10 @@ VITE_CONVEX_URL=your_convex_url_here
 VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key_here
 CLERK_SECRET_KEY=your_clerk_secret_key_here
 
-# Polar.sh Configuration
-POLAR_ACCESS_TOKEN=your_polar_access_token_here
-POLAR_ORGANIZATION_ID=your_polar_organization_id_here
-POLAR_WEBHOOK_SECRET=your_polar_webhook_secret_here
+# Clerk Billing Configuration
+CLERK_BILLING_SECRET_KEY=your_clerk_billing_secret_key_here
+CLERK_BILLING_PUBLISHABLE_KEY=your_clerk_billing_publishable_key_here
+CLERK_BILLING_WEBHOOK_SECRET=your_clerk_billing_webhook_secret_here
 
 # OpenAI Configuration (for AI chat)
 OPENAI_API_KEY=your_openai_api_key_here
@@ -158,6 +158,6 @@ The application includes OpenAI-powered chat functionality:
 3. Run `npx convex dev` to apply changes
 
 ### Webhook Handling
-- Polar.sh webhooks handled in `convex/http.ts`
+- Clerk Billing webhooks handled in `convex/http.ts`
 - Webhook events logged in `webhookEvents` table
 - Subscription status automatically updated

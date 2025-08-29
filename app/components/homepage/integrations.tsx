@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { LogoIcon } from "~/components/logo";
 import {
   Convex,
-  Polar,
+  Clerk,
   ReactIcon,
   ReactRouter,
   TailwindIcon,
@@ -56,7 +56,7 @@ export default function IntegrationsSection({
                 🗄️ Convex Database
               </div>
               <div className="px-6 py-3 rounded-full bg-white/20 backdrop-blur-sm text-white font-medium border border-white/30">
-                💳 Polar.sh Billing
+                💳 Clerk Billing
               </div>
               <div className="px-6 py-3 rounded-full bg-white/20 backdrop-blur-sm text-white font-medium border border-white/30">
                 🤖 AI Chat

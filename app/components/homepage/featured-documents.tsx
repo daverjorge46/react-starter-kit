@@ -18,7 +18,7 @@ export default function TechStackSection() {
     },
     {
       category: "Payments",
-      title: "Polar.sh Subscription Billing",
+      title: "Clerk Subscription Billing",
       description: "Complete subscription management with webhooks, customer portals, and seamless integration for recurring revenue models.",
       icon: <CreditCard className="h-6 w-6" />,
       gradient: "from-purple-500 to-pink-500"

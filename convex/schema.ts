@@ -10,8 +10,8 @@ export default defineSchema({
   }).index("by_token", ["tokenIdentifier"]),
   subscriptions: defineTable({
     userId: v.optional(v.string()),
-    polarId: v.optional(v.string()),
-    polarPriceId: v.optional(v.string()),
+    clerkSubscriptionId: v.optional(v.string()),
+    clerkPriceId: v.optional(v.string()),
     currency: v.optional(v.string()),
     interval: v.optional(v.string()),
     status: v.optional(v.string()),
@@ -30,14 +30,14 @@ export default defineSchema({
     customerId: v.optional(v.string()),
   })
     .index("userId", ["userId"])
-    .index("polarId", ["polarId"]),
+    .index("clerkSubscriptionId", ["clerkSubscriptionId"]),
   webhookEvents: defineTable({
     type: v.string(),
-    polarEventId: v.string(),
+    clerkEventId: v.string(),
     createdAt: v.string(),
     modifiedAt: v.string(),
     data: v.any(),
   })
     .index("type", ["type"])
-    .index("polarEventId", ["polarEventId"]),
+    .index("clerkEventId", ["clerkEventId"]),
 });

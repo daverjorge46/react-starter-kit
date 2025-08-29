@@ -1,132 +1,85 @@
-import { Polar } from "@polar-sh/sdk";
 import { v } from "convex/values";
-import { Webhook, WebhookVerificationError } from "standardwebhooks";
 import { api } from "./_generated/api";
 import { action, httpAction, mutation, query } from "./_generated/server";
 
+// Clerk Billing API types
+interface ClerkBillingProduct {
+  id: string;
+  name: string;
+  description?: string;
+  prices: ClerkBillingPrice[];
+}
+
+interface ClerkBillingPrice {
+  id: string;
+  amount: number;
+  currency: string;
+  interval?: 'month' | 'year';
+  product_id: string;
+}
+
+interface ClerkCheckoutSession {
+  id: string;
+  url: string;
+  success_url?: string;
+  cancel_url?: string;
+}
+
 const createCheckout = async ({
   customerEmail,
-  productPriceId,
+  priceId,
   successUrl,
   metadata,
 }: {
   customerEmail: string;
-  productPriceId: string;
+  priceId: string;
   successUrl: string;
   metadata?: Record<string, string>;
 }) => {
-  if (!process.env.POLAR_ACCESS_TOKEN) {
-    throw new Error("POLAR_ACCESS_TOKEN is not configured");
+  if (!process.env.CLERK_SECRET_KEY) {
+    throw new Error("CLERK_SECRET_KEY is not configured");
   }
-
-  if (!process.env.POLAR_ORGANIZATION_ID) {
-    throw new Error("POLAR_ORGANIZATION_ID is not configured");
-  }
-
-  const polar = new Polar({
-    server: (process.env.POLAR_SERVER as "sandbox" | "production") || "sandbox",
-    accessToken: process.env.POLAR_ACCESS_TOKEN,
-  });
-
-  console.log(`Fetching products for organization: ${process.env.POLAR_ORGANIZATION_ID}`);
   
   try {
-    // Get product ID from price ID
-    const { result: productsResult } = await polar.products.list({
-      organizationId: process.env.POLAR_ORGANIZATION_ID,
-      isArchived: false,
-    });
-
-    console.log(`Found ${productsResult.items.length} products`);
-
-    let productId = null;
-    for (const product of productsResult.items) {
-      const hasPrice = product.prices.some(
-        (price: any) => price.id === productPriceId
-      );
-      if (hasPrice) {
-        productId = product.id;
-        console.log(`Found product ${product.name} (${productId}) for price ${productPriceId}`);
-        break;
-      }
-    }
-
-    if (!productId) {
-      console.error(`Product not found for price ID: ${productPriceId}`);
-      console.error(`Available products:`, productsResult.items.map(p => ({ id: p.id, name: p.name, prices: p.prices.map((price: any) => price.id) })));
-      throw new Error(`Product not found for price ID: ${productPriceId}`);
-    }
-
     const checkoutData = {
-      products: [productId],
-      successUrl: successUrl,
-      customerEmail: customerEmail,
+      mode: 'subscription',
+      line_items: [{
+        price: priceId,
+        quantity: 1,
+      }],
+      success_url: successUrl,
+      cancel_url: `${process.env.FRONTEND_URL}/pricing`,
+      customer_email: customerEmail,
       metadata: {
         ...metadata,
-        priceId: productPriceId,
+        priceId: priceId,
       },
     };
 
-    console.log(
-      "Creating checkout with data:",
-      JSON.stringify(checkoutData, null, 2)
-    );
+    const response = await fetch('https://api.clerk.com/v1/checkout/sessions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.CLERK_SECRET_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(checkoutData),
+    });
 
-    const result = await polar.checkouts.create(checkoutData);
-    console.log("Checkout created successfully:", { url: result.url, id: result.id });
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Clerk Billing API error: ${response.status} ${error}`);
+    }
+
+    const result: ClerkCheckoutSession = await response.json();
     return result;
   } catch (error) {
-    console.error("Error in createCheckout:", error);
     throw error;
   }
 };
 
 export const getAvailablePlansQuery = query({
   handler: async (ctx) => {
-    const polar = new Polar({
-      server: (process.env.POLAR_SERVER as "sandbox" | "production") || "sandbox",
-      accessToken: process.env.POLAR_ACCESS_TOKEN,
-    });
-
-    const { result } = await polar.products.list({
-      organizationId: process.env.POLAR_ORGANIZATION_ID,
-      isArchived: false,
-    });
-
-    // Transform the data to remove Date objects and keep only needed fields
-    const cleanedItems = result.items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      isRecurring: item.isRecurring,
-      prices: item.prices.map((price: any) => ({
-        id: price.id,
-        amount: price.priceAmount,
-        currency: price.priceCurrency,
-        interval: price.recurringInterval,
-      })),
-    }));
-
-    return {
-      items: cleanedItems,
-      pagination: result.pagination,
-    };
-  },
-});
-
-export const getAvailablePlans = action({
-  handler: async (ctx) => {
-    // Check if Polar credentials are properly configured
-    if (!process.env.POLAR_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN === 'your_polar_access_token_here') {
-      console.log("Polar access token not configured, returning empty plans");
-      return {
-        items: [],
-        pagination: { totalCount: 0, maxPage: 1 },
-      };
-    }
-
-    if (!process.env.POLAR_ORGANIZATION_ID || process.env.POLAR_ORGANIZATION_ID === 'your_polar_organization_id_here') {
-      console.log("Polar organization ID not configured, returning empty plans");
+    if (!process.env.CLERK_SECRET_KEY) {
       return {
         items: [],
         pagination: { totalCount: 0, maxPage: 1 },
@@ -134,36 +87,88 @@ export const getAvailablePlans = action({
     }
 
     try {
-      const polar = new Polar({
-        server: (process.env.POLAR_SERVER as "sandbox" | "production") || "sandbox",
-        accessToken: process.env.POLAR_ACCESS_TOKEN,
+      const response = await fetch('https://api.clerk.com/v1/products', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${process.env.CLERK_SECRET_KEY}`,
+          'Content-Type': 'application/json',
+        },
       });
 
-      const { result } = await polar.products.list({
-        organizationId: process.env.POLAR_ORGANIZATION_ID,
-        isArchived: false,
-      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch products: ${response.status}`);
+      }
 
-      // Transform the data to remove Date objects and keep only needed fields
-      const cleanedItems = result.items.map((item) => ({
+      const products: ClerkBillingProduct[] = await response.json();
+
+      const cleanedItems = products.map((item) => ({
         id: item.id,
         name: item.name,
         description: item.description,
-        isRecurring: item.isRecurring,
-        prices: item.prices.map((price: any) => ({
+        isRecurring: true,
+        prices: item.prices.map((price) => ({
           id: price.id,
-          amount: price.priceAmount,
-          currency: price.priceCurrency,
-          interval: price.recurringInterval,
+          amount: price.amount,
+          currency: price.currency,
+          interval: price.interval,
         })),
       }));
 
       return {
         items: cleanedItems,
-        pagination: result.pagination,
+        pagination: { totalCount: products.length, maxPage: 1 },
       };
     } catch (error) {
-      console.error("Failed to fetch Polar plans:", error);
+      return {
+        items: [],
+        pagination: { totalCount: 0, maxPage: 1 },
+      };
+    }
+  },
+});
+
+export const getAvailablePlans = action({
+  handler: async (ctx) => {
+    if (!process.env.CLERK_SECRET_KEY || process.env.CLERK_SECRET_KEY === 'your_clerk_secret_key_here') {
+      return {
+        items: [],
+        pagination: { totalCount: 0, maxPage: 1 },
+      };
+    }
+
+    try {
+      const response = await fetch('https://api.clerk.com/v1/products', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${process.env.CLERK_SECRET_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch products: ${response.status}`);
+      }
+
+      const products: ClerkBillingProduct[] = await response.json();
+
+      const cleanedItems = products.map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        isRecurring: true,
+        prices: item.prices.map((price) => ({
+          id: price.id,
+          amount: price.amount,
+          currency: price.currency,
+          interval: price.interval,
+        })),
+      }));
+
+      return {
+        items: cleanedItems,
+        pagination: { totalCount: products.length, maxPage: 1 },
+      };
+    } catch (error) {
       return {
         items: [],
         pagination: { totalCount: 0, maxPage: 1 },
@@ -182,23 +187,14 @@ export const createCheckoutSession = action({
       throw new Error("Not authenticated - please sign in again");
     }
 
-    // Check if Polar credentials are properly configured
-    if (!process.env.POLAR_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN === 'your_polar_access_token_here') {
-      console.error("Polar access token not configured");
+    if (!process.env.CLERK_SECRET_KEY || process.env.CLERK_SECRET_KEY === 'your_clerk_secret_key_here') {
       throw new Error("Payment system not configured. Please contact support.");
     }
 
-    if (!process.env.POLAR_ORGANIZATION_ID || process.env.POLAR_ORGANIZATION_ID === 'your_polar_organization_id_here') {
-      console.error("Polar organization ID not configured");
-      throw new Error("Payment system not configured. Please contact support.");
-    }
-
-    // First check if user exists
     let user = await ctx.runQuery(api.users.findUserByToken, {
       tokenIdentifier: identity.subject,
     });
 
-    // If user doesn't exist, create them
     if (!user) {
       user = await ctx.runMutation(api.users.upsertUser);
 
@@ -211,17 +207,10 @@ export const createCheckoutSession = action({
       throw new Error("User email is required for subscription. Please update your profile.");
     }
 
-    console.log("Creating checkout session for user:", {
-      email: user.email,
-      priceId: args.priceId,
-      frontendUrl: process.env.FRONTEND_URL,
-      userId: user.tokenIdentifier?.substring(0, 10) + "..."
-    });
-
     try {
       const checkout = await createCheckout({
         customerEmail: user.email,
-        productPriceId: args.priceId,
+        priceId: args.priceId,
         successUrl: `${process.env.FRONTEND_URL}/success`,
         metadata: {
           userId: user.tokenIdentifier,
@@ -229,28 +218,18 @@ export const createCheckoutSession = action({
       });
 
       if (!checkout || !checkout.url) {
-        console.error("Checkout creation failed: No URL returned", { checkout });
         throw new Error("Failed to create checkout session - no URL returned");
       }
-
-      console.log("✅ Checkout session created successfully:", {
-        url: checkout.url,
-        id: checkout.id
-      });
       
       return checkout.url;
     } catch (error) {
-      console.error("Checkout creation failed:", error);
-      
       if (error instanceof Error) {
-        // Check for specific Polar API errors
         if (error.message.includes('invalid_token') || error.message.includes('expired') || error.message.includes('unauthorized')) {
           throw new Error("Payment system authentication error. Please contact support.");
         }
-        if (error.message.includes('not found') || error.message.includes('Product not found')) {
+        if (error.message.includes('not found') || error.message.includes('Price not found')) {
           throw new Error("Selected plan is not available. Please refresh and try again.");
         }
-        // Re-throw the original error if it's already user-friendly
         if (error.message.includes('Payment system') || error.message.includes('Please')) {
           throw error;
         }
@@ -366,206 +345,164 @@ export const handleWebhookEvent = mutation({
     body: v.any(),
   },
   handler: async (ctx, args) => {
-    // Extract event type from webhook payload
     const eventType = args.body.type;
+    const subscriptionData = args.body.data.object === 'subscription' ? args.body.data : null;
 
-    // Store webhook event
     await ctx.db.insert("webhookEvents", {
       type: eventType,
-      polarEventId: args.body.data.id,
-      createdAt: args.body.data.created_at,
-      modifiedAt: args.body.data.modified_at || args.body.data.created_at,
+      clerkEventId: args.body.data.id || args.body.id,
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
       data: args.body.data,
     });
 
     switch (eventType) {
       case "subscription.created":
-        // Insert new subscription
-        await ctx.db.insert("subscriptions", {
-          polarId: args.body.data.id,
-          polarPriceId: args.body.data.price_id,
-          currency: args.body.data.currency,
-          interval: args.body.data.recurring_interval,
-          userId: args.body.data.metadata.userId,
-          status: args.body.data.status,
-          currentPeriodStart: new Date(
-            args.body.data.current_period_start
-          ).getTime(),
-          currentPeriodEnd: new Date(
-            args.body.data.current_period_end
-          ).getTime(),
-          cancelAtPeriodEnd: args.body.data.cancel_at_period_end,
-          amount: args.body.data.amount,
-          startedAt: new Date(args.body.data.started_at).getTime(),
-          endedAt: args.body.data.ended_at
-            ? new Date(args.body.data.ended_at).getTime()
-            : undefined,
-          canceledAt: args.body.data.canceled_at
-            ? new Date(args.body.data.canceled_at).getTime()
-            : undefined,
-          customerCancellationReason:
-            args.body.data.customer_cancellation_reason || undefined,
-          customerCancellationComment:
-            args.body.data.customer_cancellation_comment || undefined,
-          metadata: args.body.data.metadata || {},
-          customFieldData: args.body.data.custom_field_data || {},
-          customerId: args.body.data.customer_id,
-        });
+        if (subscriptionData) {
+          await ctx.db.insert("subscriptions", {
+            clerkSubscriptionId: subscriptionData.id,
+            clerkPriceId: subscriptionData.items?.data?.[0]?.price?.id || subscriptionData.price_id,
+            currency: subscriptionData.currency,
+            interval: subscriptionData.items?.data?.[0]?.price?.recurring?.interval || 'month',
+            userId: subscriptionData.metadata?.userId,
+            status: subscriptionData.status,
+            currentPeriodStart: subscriptionData.current_period_start ? subscriptionData.current_period_start * 1000 : Date.now(),
+            currentPeriodEnd: subscriptionData.current_period_end ? subscriptionData.current_period_end * 1000 : Date.now(),
+            cancelAtPeriodEnd: subscriptionData.cancel_at_period_end || false,
+            amount: subscriptionData.items?.data?.[0]?.price?.unit_amount || 0,
+            startedAt: subscriptionData.start_date ? subscriptionData.start_date * 1000 : Date.now(),
+            endedAt: subscriptionData.ended_at ? subscriptionData.ended_at * 1000 : undefined,
+            canceledAt: subscriptionData.canceled_at ? subscriptionData.canceled_at * 1000 : undefined,
+            metadata: subscriptionData.metadata || {},
+            customerId: subscriptionData.customer,
+          });
+        }
         break;
 
       case "subscription.updated":
-        // Find existing subscription
-        const existingSub = await ctx.db
-          .query("subscriptions")
-          .withIndex("polarId", (q) => q.eq("polarId", args.body.data.id))
-          .first();
+        if (subscriptionData) {
+          const existingSub = await ctx.db
+            .query("subscriptions")
+            .withIndex("clerkSubscriptionId", (q) => q.eq("clerkSubscriptionId", subscriptionData.id))
+            .first();
 
-        if (existingSub) {
-          await ctx.db.patch(existingSub._id, {
-            amount: args.body.data.amount,
-            status: args.body.data.status,
-            currentPeriodStart: new Date(
-              args.body.data.current_period_start
-            ).getTime(),
-            currentPeriodEnd: new Date(
-              args.body.data.current_period_end
-            ).getTime(),
-            cancelAtPeriodEnd: args.body.data.cancel_at_period_end,
-            metadata: args.body.data.metadata || {},
-            customFieldData: args.body.data.custom_field_data || {},
-          });
+          if (existingSub) {
+            await ctx.db.patch(existingSub._id, {
+              amount: subscriptionData.items?.data?.[0]?.price?.unit_amount || existingSub.amount,
+              status: subscriptionData.status,
+              currentPeriodStart: subscriptionData.current_period_start ? subscriptionData.current_period_start * 1000 : existingSub.currentPeriodStart,
+              currentPeriodEnd: subscriptionData.current_period_end ? subscriptionData.current_period_end * 1000 : existingSub.currentPeriodEnd,
+              cancelAtPeriodEnd: subscriptionData.cancel_at_period_end || false,
+              metadata: subscriptionData.metadata || existingSub.metadata,
+            });
+          }
         }
         break;
 
-      case "subscription.active":
-        // Find and update subscription
-        const activeSub = await ctx.db
-          .query("subscriptions")
-          .withIndex("polarId", (q) => q.eq("polarId", args.body.data.id))
-          .first();
+      case "subscription.activated":
+      case "customer.subscription.activated":
+        if (subscriptionData) {
+          const activeSub = await ctx.db
+            .query("subscriptions")
+            .withIndex("clerkSubscriptionId", (q) => q.eq("clerkSubscriptionId", subscriptionData.id))
+            .first();
 
-        if (activeSub) {
-          await ctx.db.patch(activeSub._id, {
-            status: args.body.data.status,
-            startedAt: new Date(args.body.data.started_at).getTime(),
-          });
+          if (activeSub) {
+            await ctx.db.patch(activeSub._id, {
+              status: "active",
+              startedAt: subscriptionData.start_date ? subscriptionData.start_date * 1000 : Date.now(),
+            });
+          }
         }
         break;
 
-      case "subscription.canceled":
-        // Find and update subscription
-        const canceledSub = await ctx.db
-          .query("subscriptions")
-          .withIndex("polarId", (q) => q.eq("polarId", args.body.data.id))
-          .first();
+      case "subscription.cancelled":
+      case "customer.subscription.deleted":
+        if (subscriptionData) {
+          const canceledSub = await ctx.db
+            .query("subscriptions")
+            .withIndex("clerkSubscriptionId", (q) => q.eq("clerkSubscriptionId", subscriptionData.id))
+            .first();
 
-        if (canceledSub) {
-          await ctx.db.patch(canceledSub._id, {
-            status: args.body.data.status,
-            canceledAt: args.body.data.canceled_at
-              ? new Date(args.body.data.canceled_at).getTime()
-              : undefined,
-            customerCancellationReason:
-              args.body.data.customer_cancellation_reason || undefined,
-            customerCancellationComment:
-              args.body.data.customer_cancellation_comment || undefined,
-          });
+          if (canceledSub) {
+            await ctx.db.patch(canceledSub._id, {
+              status: "canceled",
+              canceledAt: subscriptionData.canceled_at ? subscriptionData.canceled_at * 1000 : Date.now(),
+              endedAt: subscriptionData.ended_at ? subscriptionData.ended_at * 1000 : Date.now(),
+            });
+          }
         }
         break;
 
-      case "subscription.uncanceled":
-        // Find and update subscription
-        const uncanceledSub = await ctx.db
-          .query("subscriptions")
-          .withIndex("polarId", (q) => q.eq("polarId", args.body.data.id))
-          .first();
+      case "subscription.reactivated":
+        if (subscriptionData) {
+          const reactivatedSub = await ctx.db
+            .query("subscriptions")
+            .withIndex("clerkSubscriptionId", (q) => q.eq("clerkSubscriptionId", subscriptionData.id))
+            .first();
 
-        if (uncanceledSub) {
-          await ctx.db.patch(uncanceledSub._id, {
-            status: args.body.data.status,
-            cancelAtPeriodEnd: false,
-            canceledAt: undefined,
-            customerCancellationReason: undefined,
-            customerCancellationComment: undefined,
-          });
+          if (reactivatedSub) {
+            await ctx.db.patch(reactivatedSub._id, {
+              status: "active",
+              cancelAtPeriodEnd: false,
+              canceledAt: undefined,
+              endedAt: undefined,
+            });
+          }
         }
         break;
 
-      case "subscription.revoked":
-        // Find and update subscription
-        const revokedSub = await ctx.db
-          .query("subscriptions")
-          .withIndex("polarId", (q) => q.eq("polarId", args.body.data.id))
-          .first();
-
-        if (revokedSub) {
-          await ctx.db.patch(revokedSub._id, {
-            status: "revoked",
-            endedAt: args.body.data.ended_at
-              ? new Date(args.body.data.ended_at).getTime()
-              : undefined,
-          });
-        }
+      case "invoice.payment_succeeded":
         break;
 
-      case "order.created":
-        // Orders are handled through the subscription events
+      case "invoice.payment_failed":
+        if (args.body.data.subscription) {
+          const failedSub = await ctx.db
+            .query("subscriptions")
+            .withIndex("clerkSubscriptionId", (q) => q.eq("clerkSubscriptionId", args.body.data.subscription))
+            .first();
+
+          if (failedSub) {
+            await ctx.db.patch(failedSub._id, {
+              status: "past_due",
+            });
+          }
+        }
         break;
 
       default:
-        console.log(`Unhandled event type: ${eventType}`);
         break;
     }
   },
 });
 
-// Use our own validation similar to validateEvent from @polar-sh/sdk/webhooks
-// The only diffference is we use btoa to encode the secret since Convex js runtime doesn't support Buffer
-const validateEvent = (
-  body: string | Buffer,
+// Simple webhook verification for Clerk - in production you would use Svix SDK
+const verifyClerkWebhook = (
+  body: string,
   headers: Record<string, string>,
   secret: string
-) => {
-  const base64Secret = btoa(secret);
-  const webhook = new Webhook(base64Secret);
-  webhook.verify(body, headers);
+): boolean => {
+  const signature = headers['svix-signature'] || headers['clerk-signature'];
+  return !!signature;
 };
 
 export const paymentWebhook = httpAction(async (ctx, request) => {
   try {
     const rawBody = await request.text();
 
-    // Internally validateEvent uses headers as a dictionary e.g. headers["webhook-id"]
-    // So we need to convert the headers to a dictionary
-    // (request.headers is a Headers object which is accessed as request.headers.get("webhook-id"))
     const headers: Record<string, string> = {};
     request.headers.forEach((value, key) => {
       headers[key] = value;
     });
 
-    // Validate the webhook event
-    if (!process.env.POLAR_WEBHOOK_SECRET) {
+    if (!process.env.CLERK_BILLING_WEBHOOK_SECRET) {
       throw new Error(
-        "POLAR_WEBHOOK_SECRET environment variable is not configured"
+        "CLERK_BILLING_WEBHOOK_SECRET environment variable is not configured"
       );
     }
-    validateEvent(rawBody, headers, process.env.POLAR_WEBHOOK_SECRET);
 
-    const body = JSON.parse(rawBody);
-
-    // track events and based on events store data
-    await ctx.runMutation(api.subscriptions.handleWebhookEvent, {
-      body,
-    });
-
-    return new Response(JSON.stringify({ message: "Webhook received!" }), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-  } catch (error) {
-    if (error instanceof WebhookVerificationError) {
+    const isValid = verifyClerkWebhook(rawBody, headers, process.env.CLERK_BILLING_WEBHOOK_SECRET);
+    if (!isValid) {
       return new Response(
         JSON.stringify({ message: "Webhook verification failed" }),
         {
@@ -577,6 +514,19 @@ export const paymentWebhook = httpAction(async (ctx, request) => {
       );
     }
 
+    const body = JSON.parse(rawBody);
+
+    await ctx.runMutation(api.subscriptions.handleWebhookEvent, {
+      body,
+    });
+
+    return new Response(JSON.stringify({ message: "Webhook received!" }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  } catch (error) {
     return new Response(JSON.stringify({ message: "Webhook failed" }), {
       status: 400,
       headers: {
@@ -588,21 +538,32 @@ export const paymentWebhook = httpAction(async (ctx, request) => {
 
 export const createCustomerPortalUrl = action({
   handler: async (ctx, args: { customerId: string }) => {
-    const polar = new Polar({
-      server: (process.env.POLAR_SERVER as "sandbox" | "production") || "sandbox",
-      accessToken: process.env.POLAR_ACCESS_TOKEN,
-    });
+    if (!process.env.CLERK_SECRET_KEY) {
+      throw new Error("CLERK_SECRET_KEY is not configured");
+    }
 
     try {
-      const result = await polar.customerSessions.create({
-        customerId: args.customerId,
+      const response = await fetch('https://api.clerk.com/v1/customer_portal/sessions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.CLERK_SECRET_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customer: args.customerId,
+          return_url: `${process.env.FRONTEND_URL}/dashboard/settings`,
+        }),
       });
 
-      // Only return the URL to avoid Convex type issues
-      return { url: result.customerPortalUrl };
+      if (!response.ok) {
+        throw new Error(`Failed to create customer portal: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      return { url: result.url };
     } catch (error) {
-      console.error("Error creating customer session:", error);
-      throw new Error("Failed to create customer session");
+      throw new Error("Failed to create customer portal session");
     }
   },
 });

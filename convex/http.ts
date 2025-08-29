@@ -93,13 +93,13 @@ http.route({
 });
 
 http.route({
-  path: "/payments/webhook",
+  path: "/webhook/clerk",
   method: "POST",
   handler: paymentWebhook,
 });
 
 // Log that routes are configured
-console.log("HTTP routes configured");
+console.log("HTTP routes configured - Chat, Auth, and Clerk Billing webhooks");
 
 // Convex expects the router to be the default export of `convex/http.js`.
 export default http;

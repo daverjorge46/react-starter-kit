@@ -13,7 +13,7 @@ export function meta({}: Route.MetaArgs) {
   const title = import.meta.env.VITE_SITE_TITLE || "React Starter Kit - Launch Your SaaS in Weeks, Not Months";
   const description = import.meta.env.VITE_SITE_DESCRIPTION ||
     "Stop rebuilding the same foundation. Get a complete, production-ready SaaS template with authentication, payments, AI chat, and real-time data working seamlessly out of the box.";
-  const keywords = import.meta.env.VITE_SITE_KEYWORDS || "React Starter Kit, SaaS Template, React Router v7, Convex, Clerk, Polar.sh, TypeScript, TailwindCSS";
+  const keywords = import.meta.env.VITE_SITE_KEYWORDS || "React Starter Kit, SaaS Template, React Router v7, Convex, Clerk, Clerk Billing, TypeScript, TailwindCSS";
   const siteUrl = import.meta.env.VITE_SITE_URL || "https://www.reactstarter.xyz/";
   const imageUrl = import.meta.env.VITE_SITE_IMAGE ||
     "https://jdj14ctwppwprnqu.public.blob.vercel-storage.com/rsk-image-FcUcfBMBgsjNLo99j3NhKV64GT2bQl.png";

@@ -1,8 +1,7 @@
-"use client";
-import { useAuth } from "@clerk/react-router";
+import { getAuth } from "@clerk/react-router/ssr.server";
+import { fetchAction, fetchQuery } from "convex/nextjs";
 import { useAction, useMutation, useQuery, useConvexAuth } from "convex/react";
 import { Check, Loader2 } from "lucide-react";
-import * as React from "react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
@@ -14,46 +13,59 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import { api } from "../../convex/_generated/api";
+import type { Route } from "./+types/pricing";
 
-export default function IntegratedPricing() {
-  const { userId } = useAuth();
+export async function loader(args: Route.LoaderArgs) {
+  try {
+    const { userId } = await getAuth(args);
+
+    // Parallel data fetching to reduce waterfall
+    const [subscriptionData, plans] = await Promise.all([
+      userId
+        ? fetchQuery(api.subscriptions.checkUserSubscriptionStatus, {
+            userId,
+          }).catch((error) => {
+            console.error("Failed to fetch subscription data:", error);
+            return null;
+          })
+        : Promise.resolve(null),
+      fetchAction(api.subscriptions.getAvailablePlans).catch((error) => {
+        console.error("Failed to fetch plans:", error);
+        return { items: [], pagination: { totalCount: 0, maxPage: 1 } };
+      }),
+    ]);
+
+    return {
+      isSignedIn: !!userId,
+      hasActiveSubscription: subscriptionData?.hasActiveSubscription || false,
+      plans,
+    };
+  } catch (error) {
+    console.error("Pricing loader error:", error);
+    // Return safe defaults if loader fails
+    return {
+      isSignedIn: false,
+      hasActiveSubscription: false,
+      plans: { items: [], pagination: { totalCount: 0, maxPage: 1 } },
+    };
+  }
+}
+
+export default function PricingPage({ loaderData }: Route.ComponentProps) {
   const { isAuthenticated } = useConvexAuth();
   const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null);
-  const [plans, setPlans] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const getPlans = useAction(api.subscriptions.getAvailablePlans);
   const subscriptionStatus = useQuery(
     api.subscriptions.checkUserSubscriptionStatus,
     {
-      userId: isAuthenticated ? userId : undefined,
+      userId: isAuthenticated ? "" : undefined,
     }
   );
   const userSubscription = useQuery(api.subscriptions.fetchUserSubscription);
   const createCheckout = useAction(api.subscriptions.createCheckoutSession);
   const createPortalUrl = useAction(api.subscriptions.createCustomerPortalUrl);
   const upsertUser = useMutation(api.users.upsertUser);
-
-  // Sync user when authenticated
-  React.useEffect(() => {
-    if (isAuthenticated) {
-      upsertUser().catch(console.error);
-    }
-  }, [isAuthenticated, upsertUser]);
-
-  // Load plans on component mount
-  React.useEffect(() => {
-    const loadPlans = async () => {
-      try {
-        const result = await getPlans();
-        setPlans(result);
-      } catch (error) {
-        console.error("Failed to load plans:", error);
-        setError("Failed to load pricing plans. Please try again.");
-      }
-    };
-    loadPlans();
-  }, [getPlans]);
 
   const handleSubscribe = async (priceId: string) => {
     if (!isAuthenticated) {
@@ -97,7 +109,7 @@ export default function IntegratedPricing() {
     }
   };
 
-  if (!plans) {
+  if (!loaderData.plans || loaderData.plans.items.length === 0) {
     return (
       <section className="flex flex-col items-center justify-center min-h-screen px-4">
         <div className="flex items-center gap-2">
@@ -130,7 +142,7 @@ export default function IntegratedPricing() {
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl w-full">
-        {plans.items
+        {loaderData.plans.items
           .sort((a: any, b: any) => {
             const priceComparison = a.prices[0].amount - b.prices[0].amount;
             return priceComparison !== 0
@@ -139,9 +151,9 @@ export default function IntegratedPricing() {
           })
           .map((plan: any, index: number) => {
             const isPopular =
-              plans.items.length === 2
+              loaderData.plans.items.length === 2
                 ? index === 1
-                : index === Math.floor(plans.items.length / 2); // Mark middle/higher priced plan as popular
+                : index === Math.floor(loaderData.plans.items.length / 2); // Mark middle/higher priced plan as popular
             const price = plan.prices[0]; // Use first price for display
             // More robust current plan detection - prioritize amount matching due to price ID inconsistencies
             const isCurrentPlan =
@@ -261,8 +273,8 @@ export default function IntegratedPricing() {
         )}
 
         {userSubscription &&
-          !plans?.items.some(
-            (plan: any) => plan.prices[0].id === userSubscription.polarPriceId
+          !loaderData.plans?.items.some(
+            (plan: any) => plan.prices[0].id === userSubscription.clerkPriceId
           ) && (
             <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-md max-w-md mx-auto">
               <p className="text-amber-800 text-center text-sm">

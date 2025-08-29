@@ -22,9 +22,9 @@
     },
     "routes": {
       "root": {
-        "path": "",
         "id": "root",
         "file": "app/root.tsx",
+        "path": "",
         "config": {}
       },
       "routes/home": {
@@ -129,9 +129,9 @@
     },
     "routes": {
       "root": {
-        "path": "",
         "id": "root",
-        "file": "root.tsx"
+        "file": "root.tsx",
+        "path": ""
       },
       "routes/home": {
         "id": "routes/home",
@@ -199,7 +199,57 @@
     },
     "serverBuildFile": "index.js",
     "serverModuleFormat": "esm",
-    "ssr": true
+    "ssr": true,
+    "unstable_routeConfig": [
+      {
+        "id": "root",
+        "path": "",
+        "file": "root.tsx",
+        "children": [
+          {
+            "file": "routes/home.tsx",
+            "index": true
+          },
+          {
+            "file": "routes/sign-in.tsx",
+            "path": "sign-in/*"
+          },
+          {
+            "file": "routes/sign-up.tsx",
+            "path": "sign-up/*"
+          },
+          {
+            "file": "routes/pricing.tsx",
+            "path": "pricing"
+          },
+          {
+            "file": "routes/success.tsx",
+            "path": "success"
+          },
+          {
+            "file": "routes/subscription-required.tsx",
+            "path": "subscription-required"
+          },
+          {
+            "file": "routes/dashboard/layout.tsx",
+            "children": [
+              {
+                "file": "routes/dashboard/index.tsx",
+                "path": "dashboard"
+              },
+              {
+                "file": "routes/dashboard/chat.tsx",
+                "path": "dashboard/chat"
+              },
+              {
+                "file": "routes/dashboard/settings.tsx",
+                "path": "dashboard/settings"
+              }
+            ]
+          }
+        ]
+      }
+    ]
   },
   "viteConfig": {
     "build": {

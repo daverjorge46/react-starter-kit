@@ -67,7 +67,7 @@ export default function ContentSection() {
             </div>
             <h3 className="text-2xl font-bold mb-4 text-card-foreground">Complete Backend</h3>
             <p className="text-muted-foreground mb-6 leading-relaxed">
-              Authentication with Clerk, real-time database with Convex, subscription billing with Polar.sh, and AI chat with OpenAI - all pre-integrated and working.
+              Authentication with Clerk, real-time database with Convex, subscription billing with Clerk Billing, and AI chat with OpenAI - all pre-integrated and working.
             </p>
             <Button
               variant="ghost"
