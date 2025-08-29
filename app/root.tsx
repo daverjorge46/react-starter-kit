@@ -14,7 +14,7 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import type { Route } from "./+types/root";
 import "./app.css";
 import { Analytics } from "@vercel/analytics/react";
-import { ThemeProvider } from "~/lib/theme-context";
+import { ThemeProvider, useTheme } from "~/lib/theme-context";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
@@ -83,29 +83,40 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function App({ loaderData }: Route.ComponentProps) {
+function ThemedClerkProvider({ children, loaderData }: { children: React.ReactNode; loaderData: any }) {
+  const { theme } = useTheme();
+  
   return (
     <ClerkProvider
       publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string}
       loaderData={loaderData}
-      signUpFallbackRedirectUrl="/redirect-after-auth"
-      signInFallbackRedirectUrl="/redirect-after-auth"
+      signUpFallbackRedirectUrl="/dashboard"
+      signInFallbackRedirectUrl="/dashboard"
       // Enable SSR mode for React Router v7
       supportEmail="support@yourapp.com"
       // Improve development mode handling
       telemetry={false}
       appearance={{
+        baseTheme: theme === 'dark' ? 'dark' : 'light',
         variables: {
           colorPrimary: "hsl(var(--primary))",
         },
       }}
     >
-      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        <ThemeProvider>
-          <Outlet />
-        </ThemeProvider>
-      </ConvexProviderWithClerk>
+      {children}
     </ClerkProvider>
+  );
+}
+
+export default function App({ loaderData }: Route.ComponentProps) {
+  return (
+    <ThemeProvider>
+      <ThemedClerkProvider loaderData={loaderData}>
+        <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+          <Outlet />
+        </ConvexProviderWithClerk>
+      </ThemedClerkProvider>
+    </ThemeProvider>
   );
 }
 

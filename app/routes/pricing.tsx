@@ -50,69 +50,76 @@ export async function loader(args: Route.LoaderArgs) {
       }
     }
 
-    // Use static plans that match the working Clerk Billing plans
-    // Since Clerk Billing is working (as shown in user screenshots), we'll provide
-    // static plans that redirect to Clerk's billing system
-    const staticPlans = {
-      items: [
-        {
-          id: "plan_personal",
-          name: "Personal Plan",
-          description: "Perfect for individuals getting started",
-          isRecurring: true,
-          prices: [{
-            id: "price_personal",
-            amount: 500, // $5.00 in cents
-            currency: "usd",
-            interval: "month",
-          }],
-        },
-        {
-          id: "plan_business", 
-          name: "Business Plan",
-          description: "Ideal for growing businesses and teams",
-          isRecurring: true,
-          prices: [{
-            id: "price_business",
-            amount: 5000, // $50.00 in cents
-            currency: "usd", 
-            interval: "month",
-          }],
-        },
-      ],
-      pagination: { totalCount: 2, maxPage: 1 },
-    };
+    // Fetch real plans from Clerk Billing API instead of using static plans
+    let plansData;
+    try {
+      plansData = await fetchAction(api.subscriptions.getAvailablePlans, {});
+      console.log("Successfully fetched plans from Clerk Billing:", plansData.items.length, "plans");
+    } catch (error) {
+      console.error("Failed to fetch plans from Clerk Billing:", error);
+      
+      // Fallback to generic plans that match common SaaS pricing patterns
+      plansData = {
+        items: [
+          {
+            id: "plan_starter",
+            name: "Starter",
+            description: "Perfect for individuals and small projects",
+            isRecurring: true,
+            prices: [{
+              id: "price_starter",
+              amount: 900, // $9.00 in cents
+              currency: "usd",
+              interval: "month",
+            }],
+          },
+          {
+            id: "plan_pro", 
+            name: "Pro",
+            description: "For growing businesses and teams",
+            isRecurring: true,
+            prices: [{
+              id: "price_pro",
+              amount: 2900, // $29.00 in cents
+              currency: "usd", 
+              interval: "month",
+            }],
+          },
+        ],
+        pagination: { totalCount: 2, maxPage: 1 },
+      };
+    }
 
     return {
       isSignedIn: !!userId,
       hasActiveSubscription: subscriptionData?.hasActiveSubscription || false,
-      plans: staticPlans,
+      plans: plansData,
     };
   } catch (error) {
     console.error("Pricing loader error:", error);
-    // Return safe defaults with static plans
-    const staticPlans = {
+    // Return safe defaults with fallback plans that match homepage expectations
+    const fallbackPlans = {
       items: [
         {
-          id: "plan_personal",
-          name: "Personal Plan",
-          description: "Perfect for individuals getting started",
+          id: "plan_starter",
+          name: "Starter",
+          description: "Perfect for individuals and small projects",
           isRecurring: true,
           prices: [{
-            id: "price_personal",
-            amount: 500, // $5.00 in cents
+            id: "price_starter",
+            amount: 900, // $9.00 in cents
             currency: "usd",
             interval: "month",
           }],
         },
         {
-          id: "plan_business", 
-          name: "Business Plan",
-          description: "Ideal for growing businesses and teams",
+          id: "plan_pro", 
+          name: "Pro",
+          description: "For growing businesses and teams",
           isRecurring: true,
           prices: [{
-            id: "price_business",
-            amount: 5000, // $50.00 in cents
+            id: "price_pro",
+            amount: 2900, // $29.00 in cents
             currency: "usd", 
             interval: "month",
           }],
@@ -124,7 +131,7 @@ export async function loader(args: Route.LoaderArgs) {
     return {
       isSignedIn: false,
       hasActiveSubscription: false,
-      plans: staticPlans,
+      plans: fallbackPlans,
     };
   }
 }

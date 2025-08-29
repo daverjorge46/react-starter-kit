@@ -1,10 +1,10 @@
-import { SignOutButton } from "@clerk/react-router";
+import { SignOutButton, UserButton } from "@clerk/react-router";
 import {
   IconDotsVertical,
   IconLogout,
   IconUserCircle,
 } from "@tabler/icons-react";
-import { SettingsIcon } from "lucide-react";
+import { useNavigate } from "react-router";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import {
   DropdownMenu,
@@ -25,13 +25,14 @@ import { useClerk } from "@clerk/react-router";
 
 export function NavUser({ user }: any) {
   const { isMobile } = useSidebar();
+  const navigate = useNavigate();
   const userFullName = user.firstName + " " + user.lastName;
   const userEmail = user.emailAddresses[0].emailAddress;
   const userInitials =
     (user?.firstName?.charAt(0) || "").toUpperCase() +
     (user?.lastName?.charAt(0) || "").toUpperCase();
   const userProfile = user.imageUrl;
-  const { signOut } = useClerk();
+  const { signOut, openUserProfile } = useClerk();
 
   return (
     <SidebarMenu>
@@ -81,13 +82,9 @@ export function NavUser({ user }: any) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openUserProfile()}>
                 <IconUserCircle />
-                Account
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <SettingsIcon />
-                Settings
+                Manage Account
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

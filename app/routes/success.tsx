@@ -31,7 +31,7 @@ export default function Success() {
     if (subscription?.status === 'active') {
       const timer = setTimeout(() => {
         window.location.href = '/dashboard';
-      }, 3000); // 3 second delay to show success message
+      }, 1500); // Reduced to 1.5 seconds for better UX
       return () => clearTimeout(timer);
     }
   }, [subscription?.status]);
@@ -114,7 +114,7 @@ export default function Success() {
             {subscription?.status === 'active' && (
               <div className="bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg p-4 text-center">
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  🎉 Redirecting to your dashboard in 3 seconds...
+                  🎉 Redirecting to your dashboard in 1.5 seconds...
                 </p>
               </div>
             )}

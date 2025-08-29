@@ -27,7 +27,7 @@ const data = {
   ],
   navSecondary: [
     {
-      title: "Settings",
+      title: "Subscription Status",
       url: "/dashboard/settings",
       icon: IconSettings,
     },

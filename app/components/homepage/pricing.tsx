@@ -151,6 +151,7 @@ export default function Pricing({ loaderData }: { loaderData: any }) {
         ) : (
           <div className="mt-8 grid gap-6 md:mt-20 md:grid-cols-3">
             {loaderData.plans.items
+              .filter((plan: any) => plan && plan.prices && plan.prices.length > 0)
               .sort((a: any, b: any) => {
                 const priceComparison = a.prices[0].amount - b.prices[0].amount;
                 return priceComparison !== 0

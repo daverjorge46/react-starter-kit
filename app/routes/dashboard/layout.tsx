@@ -40,7 +40,7 @@ export async function loader(args: Route.LoaderArgs) {
 
     // Parallel data fetching to reduce waterfall
     const [subscriptionStatus, user] = await Promise.all([
-      convexClient.query(api.subscriptions.checkUserSubscriptionStatusByClerkId, { clerkUserId: userId }),
+      convexClient.query(api.subscriptions.checkUserSubscriptionStatus, {}),
       createClerkClient({
         secretKey: process.env.CLERK_SECRET_KEY,
       }).users.getUser(userId)
