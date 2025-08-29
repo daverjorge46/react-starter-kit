@@ -10,14 +10,14 @@ import { createClerkClient } from "@clerk/react-router/api.server";
 import { Outlet } from "react-router";
 
 export async function loader(args: Route.LoaderArgs) {
-  const { userId, getToken } = await getAuth(args);
-
-  // Redirect to sign-in if not authenticated
-  if (!userId) {
-    throw redirect("/sign-in");
-  }
-
   try {
+    const { userId, getToken } = await getAuth(args);
+
+    // Redirect to sign-in if not authenticated
+    if (!userId) {
+      throw redirect("/sign-in");
+    }
+
     // Debug logging as suggested by coach
     console.log("🔍 Auth Debug:", {
       userId: userId?.substring(0, 8) + "...",
@@ -54,7 +54,17 @@ export async function loader(args: Route.LoaderArgs) {
     return { user };
   } catch (error) {
     console.error("Dashboard loader error:", error);
-    // If there's an auth error, redirect to sign-in
+    
+    // Handle different types of auth errors more gracefully
+    if (error && typeof error === 'object' && 'status' in error) {
+      const httpError = error as { status: number };
+      if (httpError.status === 307) {
+        // This is a Clerk handshake redirect, let it proceed
+        throw error;
+      }
+    }
+    
+    // For other errors, redirect to sign-in
     throw redirect("/sign-in");
   }
 }

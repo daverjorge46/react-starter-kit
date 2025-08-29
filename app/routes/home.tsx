@@ -54,10 +54,25 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader(args: Route.LoaderArgs) {
   try {
-    const { userId } = await getAuth(args);
+    // Handle authentication more gracefully - don't throw on handshake
+    let userId: string | null = null;
+    let subscriptionData: any = null;
+    
+    try {
+      const authResult = await getAuth(args);
+      userId = authResult.userId;
+    } catch (authError) {
+      // Log auth errors but don't fail the loader
+      console.log("Auth handshake in progress or failed:", authError);
+      userId = null;
+    }
 
-    // Parallel data fetching to reduce waterfall
-    const [subscriptionData, plans] = await Promise.all([
+    // Always fetch plans, conditionally fetch subscription data
+    const [plans, fetchedSubscriptionData] = await Promise.all([
+      fetchAction(api.subscriptions.getAvailablePlans).catch((error) => {
+        console.error("Failed to fetch plans:", error);
+        return { items: [], pagination: { totalCount: 0, maxPage: 1 } };
+      }),
       userId
         ? fetchQuery(api.subscriptions.checkUserSubscriptionStatus, {
             userId,
@@ -66,11 +81,9 @@ export async function loader(args: Route.LoaderArgs) {
             return null;
           })
         : Promise.resolve(null),
-      fetchAction(api.subscriptions.getAvailablePlans).catch((error) => {
-        console.error("Failed to fetch plans:", error);
-        return { items: [], pagination: { totalCount: 0, maxPage: 1 } };
-      }),
     ]);
+
+    subscriptionData = fetchedSubscriptionData;
 
     return {
       isSignedIn: !!userId,
@@ -79,7 +92,7 @@ export async function loader(args: Route.LoaderArgs) {
     };
   } catch (error) {
     console.error("Loader error:", error);
-    // Return safe defaults if auth fails
+    // Return safe defaults if anything fails
     return {
       isSignedIn: false,
       hasActiveSubscription: false,

@@ -36,17 +36,13 @@ const createCheckout = async ({
   successUrl: string;
   metadata?: Record<string, string>;
 }) => {
-  if (!process.env.CLERK_SECRET_KEY) {
-    throw new Error("CLERK_SECRET_KEY is not configured");
+  if (!process.env.CLERK_BILLING_SECRET_KEY) {
+    throw new Error("CLERK_BILLING_SECRET_KEY is not configured");
   }
   
   try {
     const checkoutData = {
-      mode: 'subscription',
-      line_items: [{
-        price: priceId,
-        quantity: 1,
-      }],
+      plan_id: priceId,
       success_url: successUrl,
       cancel_url: `${process.env.FRONTEND_URL}/pricing`,
       customer_email: customerEmail,
@@ -56,10 +52,10 @@ const createCheckout = async ({
       },
     };
 
-    const response = await fetch('https://api.clerk.com/v1/checkout/sessions', {
+    const response = await fetch('https://api.clerk.com/v1/billing/checkout_sessions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.CLERK_SECRET_KEY}`,
+        'Authorization': `Bearer ${process.env.CLERK_BILLING_SECRET_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(checkoutData),
@@ -67,12 +63,14 @@ const createCheckout = async ({
 
     if (!response.ok) {
       const error = await response.text();
+      console.error(`Clerk Billing API error: ${response.status}`, error);
       throw new Error(`Clerk Billing API error: ${response.status} ${error}`);
     }
 
     const result: ClerkCheckoutSession = await response.json();
     return result;
   } catch (error) {
+    console.error('Error creating checkout session:', error);
     throw error;
   }
 };
@@ -129,7 +127,8 @@ export const getAvailablePlansQuery = query({
 
 export const getAvailablePlans = action({
   handler: async (ctx) => {
-    if (!process.env.CLERK_SECRET_KEY || process.env.CLERK_SECRET_KEY === 'your_clerk_secret_key_here') {
+    if (!process.env.CLERK_BILLING_SECRET_KEY || process.env.CLERK_BILLING_SECRET_KEY === 'your_clerk_billing_secret_key_here') {
+      console.log("CLERK_BILLING_SECRET_KEY not configured, returning empty plans");
       return {
         items: [],
         pagination: { totalCount: 0, maxPage: 1 },
@@ -137,38 +136,50 @@ export const getAvailablePlans = action({
     }
 
     try {
-      const response = await fetch('https://api.clerk.com/v1/products', {
+      // Use the correct Clerk Billing API endpoint
+      const response = await fetch('https://api.clerk.com/v1/billing/plans', {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${process.env.CLERK_SECRET_KEY}`,
+          'Authorization': `Bearer ${process.env.CLERK_BILLING_SECRET_KEY}`,
           'Content-Type': 'application/json',
         },
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch products: ${response.status}`);
+        console.error(`Failed to fetch billing plans: ${response.status}`, await response.text());
+        throw new Error(`Failed to fetch billing plans: ${response.status}`);
       }
 
-      const products: ClerkBillingProduct[] = await response.json();
+      const data = await response.json();
+      const plans = data.data || data.items || data;
 
-      const cleanedItems = products.map((item) => ({
+      if (!Array.isArray(plans)) {
+        console.error('Unexpected response format:', data);
+        return {
+          items: [],
+          pagination: { totalCount: 0, maxPage: 1 },
+        };
+      }
+
+      const cleanedItems = plans.map((item: any) => ({
         id: item.id,
-        name: item.name,
-        description: item.description,
+        name: item.name || item.title || `Plan ${item.id}`,
+        description: item.description || 'No description available',
         isRecurring: true,
-        prices: item.prices.map((price) => ({
-          id: price.id,
-          amount: price.amount,
-          currency: price.currency,
-          interval: price.interval,
-        })),
+        prices: [{
+          id: item.id,
+          amount: item.amount || item.price || 0,
+          currency: item.currency || 'usd',
+          interval: item.interval || 'month',
+        }],
       }));
 
       return {
         items: cleanedItems,
-        pagination: { totalCount: products.length, maxPage: 1 },
+        pagination: { totalCount: plans.length, maxPage: 1 },
       };
     } catch (error) {
+      console.error('Error fetching billing plans:', error);
       return {
         items: [],
         pagination: { totalCount: 0, maxPage: 1 },
@@ -187,7 +198,7 @@ export const createCheckoutSession = action({
       throw new Error("Not authenticated - please sign in again");
     }
 
-    if (!process.env.CLERK_SECRET_KEY || process.env.CLERK_SECRET_KEY === 'your_clerk_secret_key_here') {
+    if (!process.env.CLERK_BILLING_SECRET_KEY || process.env.CLERK_BILLING_SECRET_KEY === 'your_clerk_billing_secret_key_here') {
       throw new Error("Payment system not configured. Please contact support.");
     }
 
@@ -538,15 +549,15 @@ export const paymentWebhook = httpAction(async (ctx, request) => {
 
 export const createCustomerPortalUrl = action({
   handler: async (ctx, args: { customerId: string }) => {
-    if (!process.env.CLERK_SECRET_KEY) {
-      throw new Error("CLERK_SECRET_KEY is not configured");
+    if (!process.env.CLERK_BILLING_SECRET_KEY) {
+      throw new Error("CLERK_BILLING_SECRET_KEY is not configured");
     }
 
     try {
-      const response = await fetch('https://api.clerk.com/v1/customer_portal/sessions', {
+      const response = await fetch('https://api.clerk.com/v1/billing/customer_portal/sessions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.CLERK_SECRET_KEY}`,
+          'Authorization': `Bearer ${process.env.CLERK_BILLING_SECRET_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -556,6 +567,8 @@ export const createCustomerPortalUrl = action({
       });
 
       if (!response.ok) {
+        const error = await response.text();
+        console.error(`Failed to create customer portal: ${response.status}`, error);
         throw new Error(`Failed to create customer portal: ${response.status}`);
       }
 
@@ -563,6 +576,7 @@ export const createCustomerPortalUrl = action({
       
       return { url: result.url };
     } catch (error) {
+      console.error('Error creating customer portal:', error);
       throw new Error("Failed to create customer portal session");
     }
   },
