@@ -28,7 +28,7 @@ This is a **React Starter Kit (RSK)** - a production-ready SaaS template built w
 ### Backend & Services
 - **Convex** - Real-time database and serverless functions
 - **Clerk** - Authentication and user management 
-- **Polar.sh** - Subscription billing and payments
+- **Clerk Billing** - Subscription billing and payments
 - **OpenAI** - AI chat capabilities
 
 ### UI Components
