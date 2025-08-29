@@ -19,49 +19,66 @@ const createCheckout = async ({
     throw new Error("POLAR_ACCESS_TOKEN is not configured");
   }
 
+  if (!process.env.POLAR_ORGANIZATION_ID) {
+    throw new Error("POLAR_ORGANIZATION_ID is not configured");
+  }
+
   const polar = new Polar({
     server: (process.env.POLAR_SERVER as "sandbox" | "production") || "sandbox",
     accessToken: process.env.POLAR_ACCESS_TOKEN,
   });
 
-  // Get product ID from price ID
-  const { result: productsResult } = await polar.products.list({
-    organizationId: process.env.POLAR_ORGANIZATION_ID,
-    isArchived: false,
-  });
+  console.log(`Fetching products for organization: ${process.env.POLAR_ORGANIZATION_ID}`);
+  
+  try {
+    // Get product ID from price ID
+    const { result: productsResult } = await polar.products.list({
+      organizationId: process.env.POLAR_ORGANIZATION_ID,
+      isArchived: false,
+    });
 
-  let productId = null;
-  for (const product of productsResult.items) {
-    const hasPrice = product.prices.some(
-      (price: any) => price.id === productPriceId
-    );
-    if (hasPrice) {
-      productId = product.id;
-      break;
+    console.log(`Found ${productsResult.items.length} products`);
+
+    let productId = null;
+    for (const product of productsResult.items) {
+      const hasPrice = product.prices.some(
+        (price: any) => price.id === productPriceId
+      );
+      if (hasPrice) {
+        productId = product.id;
+        console.log(`Found product ${product.name} (${productId}) for price ${productPriceId}`);
+        break;
+      }
     }
+
+    if (!productId) {
+      console.error(`Product not found for price ID: ${productPriceId}`);
+      console.error(`Available products:`, productsResult.items.map(p => ({ id: p.id, name: p.name, prices: p.prices.map((price: any) => price.id) })));
+      throw new Error(`Product not found for price ID: ${productPriceId}`);
+    }
+
+    const checkoutData = {
+      products: [productId],
+      successUrl: successUrl,
+      customerEmail: customerEmail,
+      metadata: {
+        ...metadata,
+        priceId: productPriceId,
+      },
+    };
+
+    console.log(
+      "Creating checkout with data:",
+      JSON.stringify(checkoutData, null, 2)
+    );
+
+    const result = await polar.checkouts.create(checkoutData);
+    console.log("Checkout created successfully:", { url: result.url, id: result.id });
+    return result;
+  } catch (error) {
+    console.error("Error in createCheckout:", error);
+    throw error;
   }
-
-  if (!productId) {
-    throw new Error(`Product not found for price ID: ${productPriceId}`);
-  }
-
-  const checkoutData = {
-    products: [productId],
-    successUrl: successUrl,
-    customerEmail: customerEmail,
-    metadata: {
-      ...metadata,
-      priceId: productPriceId,
-    },
-  };
-
-  console.log(
-    "Creating checkout with data:",
-    JSON.stringify(checkoutData, null, 2)
-  );
-
-  const result = await polar.checkouts.create(checkoutData);
-  return result;
 };
 
 export const getAvailablePlansQuery = query({
@@ -165,6 +182,17 @@ export const createCheckoutSession = action({
       throw new Error("Not authenticated - please sign in again");
     }
 
+    // Check if Polar credentials are properly configured
+    if (!process.env.POLAR_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN === 'your_polar_access_token_here') {
+      console.error("Polar access token not configured");
+      throw new Error("Payment system not configured. Please contact support.");
+    }
+
+    if (!process.env.POLAR_ORGANIZATION_ID || process.env.POLAR_ORGANIZATION_ID === 'your_polar_organization_id_here') {
+      console.error("Polar organization ID not configured");
+      throw new Error("Payment system not configured. Please contact support.");
+    }
+
     // First check if user exists
     let user = await ctx.runQuery(api.users.findUserByToken, {
       tokenIdentifier: identity.subject,
@@ -179,16 +207,57 @@ export const createCheckoutSession = action({
       }
     }
 
-    const checkout = await createCheckout({
-      customerEmail: user.email!,
-      productPriceId: args.priceId,
-      successUrl: `${process.env.FRONTEND_URL}/success`,
-      metadata: {
-        userId: user.tokenIdentifier,
-      },
+    if (!user.email) {
+      throw new Error("User email is required for subscription. Please update your profile.");
+    }
+
+    console.log("Creating checkout session for user:", {
+      email: user.email,
+      priceId: args.priceId,
+      frontendUrl: process.env.FRONTEND_URL,
+      userId: user.tokenIdentifier?.substring(0, 10) + "..."
     });
 
-    return checkout.url;
+    try {
+      const checkout = await createCheckout({
+        customerEmail: user.email,
+        productPriceId: args.priceId,
+        successUrl: `${process.env.FRONTEND_URL}/success`,
+        metadata: {
+          userId: user.tokenIdentifier,
+        },
+      });
+
+      if (!checkout || !checkout.url) {
+        console.error("Checkout creation failed: No URL returned", { checkout });
+        throw new Error("Failed to create checkout session - no URL returned");
+      }
+
+      console.log("✅ Checkout session created successfully:", {
+        url: checkout.url,
+        id: checkout.id
+      });
+      
+      return checkout.url;
+    } catch (error) {
+      console.error("Checkout creation failed:", error);
+      
+      if (error instanceof Error) {
+        // Check for specific Polar API errors
+        if (error.message.includes('invalid_token') || error.message.includes('expired') || error.message.includes('unauthorized')) {
+          throw new Error("Payment system authentication error. Please contact support.");
+        }
+        if (error.message.includes('not found') || error.message.includes('Product not found')) {
+          throw new Error("Selected plan is not available. Please refresh and try again.");
+        }
+        // Re-throw the original error if it's already user-friendly
+        if (error.message.includes('Payment system') || error.message.includes('Please')) {
+          throw error;
+        }
+      }
+      
+      throw new Error("Failed to create checkout session. Please try again or contact support.");
+    }
   },
 });
 
