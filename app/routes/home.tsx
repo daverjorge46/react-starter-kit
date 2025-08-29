@@ -62,8 +62,17 @@ export async function loader(args: Route.LoaderArgs) {
       const authResult = await getAuth(args);
       userId = authResult.userId;
     } catch (authError) {
-      // Log auth errors but don't fail the loader
-      console.log("Auth handshake in progress or failed:", authError);
+      // Silently handle auth handshake - this is normal for unauthenticated users
+      // Only log if it's an unexpected error (not a 307 redirect)
+      if (authError && typeof authError === 'object' && 'status' in authError) {
+        const httpError = authError as { status: number };
+        if (httpError.status !== 307) {
+          console.log("Unexpected auth error:", authError);
+        }
+        // 307 redirects are normal auth handshake flow, don't log them
+      } else {
+        console.log("Auth handshake in progress");
+      }
       userId = null;
     }
 

@@ -47,16 +47,26 @@ export default function Pricing({ loaderData }: { loaderData: any }) {
         return;
       }
 
-      // For new subscriptions, try to create checkout via our API
-      // If that fails, redirect to Clerk's billing interface
-      try {
-        const checkoutUrl = await createCheckout({ priceId });
-        window.location.href = checkoutUrl;
-      } catch (checkoutError) {
-        console.log("API checkout failed, redirecting to Clerk billing:", checkoutError);
-        // Fallback: redirect to dashboard where Clerk billing works
-        window.location.href = "/dashboard";
-      }
+      // Since Clerk Billing is working perfectly in the user account interface,
+      // direct users to the account billing section where they can subscribe
+      console.log("Directing user to Clerk billing interface");
+      
+      // Show user a message and redirect to account billing
+      setError("Taking you to your account where you can complete your subscription...");
+      
+      setTimeout(() => {
+        // Create a Clerk account modal or redirect to account management
+        // This will open Clerk's user account interface where billing works
+        if (window.Clerk && window.Clerk.openUserProfile) {
+          window.Clerk.openUserProfile({ 
+            initialPage: "billing" 
+          });
+        } else {
+          // Fallback: redirect to a page that will show account interface
+          window.location.href = "/dashboard/settings";
+        }
+        setLoadingPriceId(null);
+      }, 1500);
     } catch (error) {
       console.error("Failed to process subscription action:", error);
       
@@ -182,7 +192,7 @@ export default function Pricing({ loaderData }: { loaderData: any }) {
                             }
                           })()
                         ) : (
-                          "Get Started (Demo)"
+                          "Subscribe Now"
                         )}
                       </Button>
                     </CardHeader>

@@ -53,16 +53,21 @@ export async function loader(args: Route.LoaderArgs) {
 
     return { user };
   } catch (error) {
-    console.error("Dashboard loader error:", error);
-    
-    // Handle different types of auth errors more gracefully
+    // Handle auth errors more gracefully - don't log expected redirects
     if (error && typeof error === 'object' && 'status' in error) {
       const httpError = error as { status: number };
       if (httpError.status === 307) {
         // This is a Clerk handshake redirect, let it proceed
         throw error;
       }
+      if (httpError.status === 302) {
+        // This is expected redirect to sign-in, don't log as error
+        throw redirect("/sign-in");
+      }
     }
+    
+    // Only log unexpected errors
+    console.error("Dashboard loader error:", error);
     
     // For other errors, redirect to sign-in
     throw redirect("/sign-in");
